@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Player with DJ Effect</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .auth-container, .main-container {
+            width: 90%;
+            max-width: 600px;
+            text-align: center;
+        }
+        .auth-container {
+            display: none;
+        }
+        .main-container {
+            display: none;
+        }
+        input, button {
+            margin: 10px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #1db954;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #17a34a;
+        }
+        .dp-container {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            margin: 20px auto;
+        }
+        .dp {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #fff;
+        }
+        .dj-effect {
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            width: 170px;
+            height: 170px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(29, 185, 84, 0.5), transparent);
+            animation: pulse 1s infinite;
+            pointer-events: none;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.7; }
+            50% { transform: scale(1.2); opacity: 0.3; }
+            100% { transform: scale(1); opacity: 0.7; }
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .song-list {
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .song-item {
+            background-color: #1e1e1e;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .song-item:hover {
+            background-color: #2e2e2e;
+        }
+        .progress-container {
+            width: 100%;
+            height: 5px;
+            background-color: #444;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+        .progress {
+            height: 100%;
+            background-color: #1db954;
+            width: 0;
+        }
+        #volume {
+            width: 100px;
+        }
+        .fullscreen-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+        }
+        @media (max-width: 600px) {
+            .dp-container {
+                width: 100px;
+                height: 100px;
+            }
+            .dj-effect {
+                width: 120px;
+                height: 120px;
+                top: -10px;
+                left: -10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Authentication Container -->
+    <div class="auth-container" id="authContainer">
+        <h2 id="authTitle">Login</h2>
+        <input type="email" id="email" placeholder="Email" required>
+        <input type="password" id="password" placeholder="Password" required>
+        <button onclick="handleAuth()">Login</button>
+        <button onclick="toggleAuthMode()">Switch to Signup</button>
+    </div>
+
+    <!-- Main Music Player Container -->
+    <div class="main-container" id="mainContainer">
+        <h2>Welcome, <span id="userEmail"></span></h2>
+        <button onclick="logout()">Logout</button>
+        <div class="dp-container">
+            <img class="dp" id="userDp" src="https://via.placeholder.com/150" alt="User DP">
+            <div class="dj-effect" id="djEffect"></div>
+        </div>
+        <input type="file" id="songUpload" accept="audio/*">
+        <input type="file" id="dpUpload" accept="image/*">
+        <div class="controls">
+            <button onclick="playPrevious()">⏮</button>
+            <button onclick="togglePlay()">▶️</button>
+            <button onclick="playNext()">⏭</button>
+            <button onclick="toggleFullscreen()" class="fullscreen-btn">⛶</button>
+        </div>
+        <div class="progress-container" id="progressContainer">
+            <div class="progress" id="progress"></div>
+        </div>
+        <input type="range" id="volume" min="0" max="1" step="0.1" value="1">
+        <div class="song-list" id="songList"></div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js"></script>
+
+    <script>
+        // Firebase Configuration (Replace with your Firebase config)
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const storage = firebase.storage();
+        const audio = new Audio();
+        let currentSongIndex = -1;
+        let songs = [];
+        let isPlaying = false;
+        let isSignupMode = false;
+
+        // Web Audio API for DJ Effect
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const analyser = audioContext.createAnalyser();
+        const source = audioContext.createMediaElementSource(audio);
+        source.connect(analyser);
+        analyser.connect(audioContext.destination);
+        analyser.fftSize = 256;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        // Check Authentication State
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                document.getElementById('authContainer').style.display = 'none';
+                document.getElementById('mainContainer').style.display = 'block';
+                document.getElementById('userEmail').textContent = user.email;
+                loadSongs(user.uid);
+                loadUserDp(user.uid);
+            } else {
+                document.getElementById('authContainer').style.display = 'block';
+                document.getElementById('mainContainer').style.display = 'none';
+            }
+        });
+
+        // Handle Login/Signup
+        function handleAuth() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            if (isSignupMode) {
+                auth.createUserWithEmailAndPassword(email, password)
+                    .then(() => alert('Signup successful!'))
+                    .catch(error => alert(error.message));
+            } else {
+                auth.signInWithEmailAndPassword(email, password)
+                    .then(() => alert('Login successful!'))
+                    .catch(error => alert(error.message));
+            }
+        }
+
+        // Toggle between Login and Signup
+        function toggleAuthMode() {
+            isSignupMode = !isSignupMode;
+            document.getElementById('authTitle').textContent = isSignupMode ? 'Signup' : 'Login';
+            document.getElementsByTagName('button')[0].textContent = isSignupMode ? 'Signup' : 'Login';
+            document.getElementsByTagName('button')[1].textContent = isSignupMode ? 'Switch to Login' : 'Switch to Signup';
+        }
+
+        // Logout
+        function logout() {
+            auth.signOut().then(() => alert('Logged out!'));
+        }
+
+        // Upload Song
+        document.getElementById('songUpload').addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const user = auth.currentUser;
+            if (!user) return alert('Please login first!');
+            const storageRef = storage.ref(`songs/${user.uid}/${file.name}`);
+            storageRef.put(file).then(() => {
+                alert('Song uploaded!');
+                loadSongs(user.uid);
+            }).catch(error => alert(error.message));
+        });
+
+        // Upload DP
+        document.getElementById('dpUpload').addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const user = auth.currentUser;
+            if (!user) return alert('Please login first!');
+            const storageRef = storage.ref(`dps/${user.uid}/dp.jpg`);
+            storageRef.put(file).then(() => {
+                loadUserDp(user.uid);
+            }).catch(error => alert(error.message));
+        });
+
+        // Load User's Songs
+        function loadSongs(uid) {
+            const storageRef = storage.ref(`songs/${uid}`);
+            storageRef.listAll().then(result => {
+                songs = [];
+                const songList = document.getElementById('songList');
+                songList.innerHTML = '';
+                result.items.forEach((item, index) => {
+                    item.getDownloadURL().then(url => {
+                        songs.push({ name: item.name, url });
+                        const div = document.createElement('div');
+                        div.className = 'song-item';
+                        div.textContent = item.name;
+                        div.onclick = () => playSong(index);
+                        songList.appendChild(div);
+                    });
+                });
+            }).catch(error => alert(error.message));
+        }
+
+        // Load User's DP
+        function loadUserDp(uid) {
+            const storageRef = storage.ref(`dps/${uid}/dp.jpg`);
+            storageRef.getDownloadURL().then(url => {
+                document.getElementById('userDp').src = url;
+            }).catch(() => {
+                document.getElementById('userDp').src = 'https://via.placeholder.com/150';
+            });
+        }
+
+        // Play Song
+        function playSong(index) {
+            if (index < 0 || index >= songs.length) return;
+            currentSongIndex = index;
+            audio.src = songs[index].url;
+            audio.play();
+            isPlaying = true;
+            document.getElementsByTagName('button')[3].textContent = '⏸';
+            updateDJEffect();
+        }
+
+        // Toggle Play/Pause
+        function togglePlay() {
+            if (isPlaying) {
+                audio.pause();
+                isPlaying = false;
+                document.getElementsByTagName('button')[3].textContent = '▶️';
+            } else {
+                audio.play();
+                isPlaying = true;
+                document.getElementsByTagName('button')[3].textContent = '⏸';
+            }
+        }
+
+        // Play Next Song
+        function playNext() {
+            if (currentSongIndex < songs.length - 1) {
+                playSong(currentSongIndex + 1);
+            }
+        }
+
+        // Play Previous Song
+        function playPrevious() {
+            if (currentSongIndex > 0) {
+                playSong(currentSongIndex - 1);
+            }
+        }
+
+        // Update Progress Bar
+        audio.addEventListener('timeupdate', () => {
+            const progress = (audio.currentTime / audio.duration) * 100;
+            document.getElementById('progress').style.width = `${progress}%`;
+        });
+
+        // Seek Song
+        document.getElementById('progressContainer').addEventListener('click', e => {
+            const rect = e.target.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const width = rect.width;
+            const percentage = x / width;
+            audio.currentTime = percentage * audio.duration;
+        });
+
+        // Volume Control
+        document.getElementById('volume').addEventListener('input', e => {
+            audio.volume = e.target.value;
+        });
+
+        // Toggle Fullscreen
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // DJ Effect Animation
+        function updateDJEffect() {
+            function animate() {
+                if (!isPlaying) return;
+                analyser.getByteFrequencyData(dataArray);
+                const avg = dataArray.reduce((a, b) => a + b) / bufferLength;
+                const scale = 1 + (avg / 256) * 0.5;
+                document.getElementById('djEffect').style.transform = `scale(${scale})`;
+                requestAnimationFrame(animate);
+            }
+            animate();
+        }
+    </script>
+</body>
+</html>
