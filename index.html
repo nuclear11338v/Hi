@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Player with YouTube DJ Effect</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a, #2c3e50);
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+        .auth-container, .main-container {
+            display: none;
+        }
+        .main-container.active, .auth-container.active {
+            display: block;
+        }
+        input, button {
+            padding: 10px;
+            margin: 10px 0;
+            width: 100%;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background: #e91e63;
+            color: #fff;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #c2185b;
+        }
+        .dp-container {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            margin: 20px auto;
+            perspective: 1000px;
+        }
+        .dp {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 5px solid #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            z-index: 1;
+        }
+        .dj-effect, .dj-effect-inner {
+            position: absolute;
+            top: -20px;
+            left: -20px;
+            width: 190px;
+            height: 190px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            background: conic-gradient(#e91e63, #2196f3, #9c27b0, #e91e63);
+            opacity: 0;
+            transform: rotateX(70deg) rotateY(0deg);
+            filter: blur(2px);
+            box-shadow: 0 0 20px rgba(233, 30, 99, 0.5);
+        }
+        .dj-effect-inner {
+            top: -15px;
+            left: -15px;
+            width: 180px;
+            height: 180px;
+            background: conic-gradient(#2196f3, #e91e63, #9c27b0, #2196f3);
+            transform: rotateX(60deg) rotateY(0deg);
+        }
+        .dj-effect.active, .dj-effect-inner.active {
+            opacity: 0.7;
+            animation: rotate3d 5s linear infinite, pulse3d 0.5s ease-in-out infinite;
+        }
+        @keyframes rotate3d {
+            0% { transform: rotateX(70deg) rotateY(0deg); }
+            100% { transform: rotateX(70deg) rotateY(360deg); }
+        }
+        @keyframes pulse3d {
+            0% { transform: rotateX(70deg) rotateY(360deg) scale(1); opacity: 0.7; }
+            50% { transform: rotateX(70deg) rotateY(360deg) scale(1.15); opacity: 0.9; }
+            100% { transform: rotateX(70deg) rotateY(360deg) scale(1); opacity: 0.7; }
+        }
+        audio {
+            width: 100%;
+            margin: 10px 0;
+        }
+        .controls button {
+            width: 60px;
+            margin: 5px;
+        }
+        .song-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        .song-item {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .song-item:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .progress-container {
+            width: 100%;
+            height: 5px;
+            background: #555;
+            border-radius: 5px;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #e91e63;
+            width: 0;
+            border-radius: 5px;
+        }
+        .loading, .now-playing {
+            display: none;
+            color: #e91e63;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        .loading.active, .now-playing.active {
+            display: block;
+        }
+        @media (max-width: 600px) {
+            .container {
+                width: 95%;
+                padding: 15px;
+            }
+            .dp-container {
+                width: 120px;
+                height: 120px;
+            }
+            .dj-effect, .dj-effect-inner {
+                width: 160px;
+                height: 160px;
+                top: -20px;
+                left: -20px;
+            }
+            .dj-effect-inner {
+                width: 150px;
+                height: 150px;
+                top: -15px;
+                left: -15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Auth Container -->
+        <div class="auth-container active" id="authContainer">
+            <h2 id="authTitle">Login</h2>
+            <input type="text" id="username" placeholder="Username" required>
+            <input type="password" id="password" placeholder="Password" required>
+            <button onclick="handleAuth()">Login</button>
+            <p id="toggleAuth" onclick="toggleAuthMode()">Don't have an account? Sign Up</p>
+            <p id="authError" style="color: red;"></p>
+        </div>
+
+        <!-- Main Container -->
+        <div class="main-container" id="mainContainer">
+            <h2>Welcome, <span id="currentUser"></span>!</h2>
+            <button onclick="logout()">Logout</button>
+            <div class="dp-container">
+                <img src="https://via.placeholder.com/150?text=DP" id="userDP" class="dp" alt="User DP">
+                <div class="dj-effect" id="djEffect"></div>
+                <div class="dj-effect-inner" id="djEffectInner"></div>
+            </div>
+            <input type="file" id="dpUpload" accept="image/*" style="display: none;" onchange="uploadDP()">
+            <button onclick="document.getElementById('dpUpload').click()">Upload DP</button>
+            <input type="file" id="songUpload" accept="audio/mp3" onchange="uploadSong()">
+            <button onclick="document.getElementById('songUpload').click()">Upload Song</button>
+            <p class="loading" id="loading">Uploading...</p>
+            <p class="now-playing" id="nowPlaying">Now Playing: <span id="currentSongName"></span></p>
+            <audio id="audioPlayer" controls style="display: none;"></audio>
+            <div class="progress-container" id="progressContainer" onclick="seek(event)">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="controls">
+                <button onclick="previousSong()">⏮</button>
+                <button onclick="togglePlay()">▶️</button>
+                <button onclick="nextSong()">⏭</button>
+                <button onclick="toggleFullScreen()">⛶</button>
+            </div>
+            <div class="song-list" id="songList"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let songs = [];
+        let currentSongIndex = -1;
+        let isPlaying = false;
+        const audio = document.getElementById('audioPlayer');
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            checkLoginStatus();
+            updateSongList();
+            audio.onerror = () => {
+                alert('Error loading audio. Please ensure the file is a valid MP3.');
+                isPlaying = false;
+                updatePlayButton();
+                document.getElementById('djEffect').classList.remove('active');
+                document.getElementById('djEffectInner').classList.remove('active');
+            };
+            audio.oncanplay = () => {
+                if (isPlaying) {
+                    audio.play().catch(error => {
+                        alert('Playback failed: ' + error.message);
+                    });
+                }
+            };
+        });
+
+        // Auth Handling
+        function handleAuth() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const isLogin = document.getElementById('authTitle').textContent === 'Login';
+            const authError = document.getElementById('authError');
+            let users = JSON.parse(localStorage.getItem('users') || '{}');
+
+            if (isLogin) {
+                if (users[username] && users[username].password === password) {
+                    currentUser = username;
+                    localStorage.setItem('currentUser', username);
+                    loadUserData();
+                    switchToMain();
+                } else {
+                    authError.textContent = 'Invalid username or password';
+                }
+            } else {
+                if (users[username]) {
+                    authError.textContent = 'Username already exists';
+                } else {
+                    users[username] = { password, dp: null, songs: [] };
+                    localStorage.setItem('users', JSON.stringify(users));
+                    currentUser = username;
+                    localStorage.setItem('currentUser', username);
+                    switchToMain();
+                }
+            }
+        }
+
+        function toggleAuthMode() {
+            const authTitle = document.getElementById('authTitle');
+            const toggleText = document.getElementById('toggleAuth');
+            const authError = document.getElementById('authError');
+            if (authTitle.textContent === 'Login') {
+                authTitle.textContent = 'Sign Up';
+                toggleText.textContent = 'Already have an account? Login';
+            } else {
+                authTitle.textContent = 'Login';
+                toggleText.textContent = "Don't have an account? Sign Up";
+            }
+            authError.textContent = '';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+
+        function checkLoginStatus() {
+            currentUser = localStorage.getItem('currentUser');
+            if (currentUser) {
+                loadUserData();
+                switchToMain();
+            }
+        }
+
+        function loadUserData() {
+            let users = JSON.parse(localStorage.getItem('users') || '{}');
+            if (users[currentUser]) {
+                songs = users[currentUser].songs || [];
+                const dp = users[currentUser].dp;
+                if (dp) {
+                    document.getElementById('userDP').src = dp;
+                }
+                document.getElementById('currentUser').textContent = currentUser;
+                updateSongList();
+            }
+        }
+
+        function switchToMain() {
+            document.getElementById('authContainer').classList.remove('active');
+            document.getElementById('mainContainer').classList.add('active');
+        }
+
+        function logout() {
+            localStorage.removeItem('currentUser');
+            currentUser = null;
+            songs = [];
+            currentSongIndex = -1;
+            audio.pause();
+            isPlaying = false;
+            document.getElementById('nowPlaying').classList.remove('active');
+            document.getElementById('authContainer').classList.add('active');
+            document.getElementById('mainContainer').classList.remove('active');
+            document.getElementById('authTitle').textContent = 'Login';
+            document.getElementById('toggleAuth').textContent = "Don't have an account? Sign Up";
+            document.getElementById('authError').textContent = '';
+        }
+
+        // Song Upload
+        function uploadSong() {
+            const file = document.getElementById('songUpload').files[0];
+            if (file && file.type === 'audio/mpeg') {
+                if (file.size > 5 * 1024 * 1024) { // Limit to 5MB
+                    alert('File is too large. Please upload an MP3 under 5MB.');
+                    return;
+                }
+                document.getElementById('loading').classList.add('active');
+                const reader = new FileReader();
+                reader.onload = () => {
+                    songs.push({ name: file.name, data: reader.result });
+                    saveSongs();
+                    updateSongList();
+                    document.getElementById('loading').classList.remove('active');
+                };
+                reader.onerror = () => {
+                    alert('Error reading file');
+                    document.getElementById('loading'). likeclassList.remove('active');
+                };
+                reader.readAsDataURL(file);
+            } else {
+                alert('Please upload a valid MP3 file');
+            }
+        }
+
+        function saveSongs() {
+            let users = JSON.parse(localStorage.getItem('users') || '{}');
+            if (users[currentUser]) {
+                users[currentUser].songs = songs;
+                try {
+                    localStorage.setItem('users', JSON.stringify(users));
+                } catch (e) {
+                    alert('Storage limit reached. Please remove some songs.');
+                }
+            }
+        }
+
+        // DP Upload
+        function uploadDP() {
+            const file = document.getElementById('dpUpload').files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    document.getElementById('userDP').src = reader.result;
+                    let users = JSON.parse(localStorage.getItem('users') || '{}');
+                    if (users[currentUser]) {
+                        users[currentUser].dp = reader.result;
+                        localStorage.setItem('users', JSON.stringify(users));
+                    }
+                };
+                reader.readAsDataURL(file);
+            } else {
+                alert('Please upload an image file');
+            }
+        }
+
+        // Song List
+        function updateSongList() {
+            const songList = document.getElementById('songList');
+            songList.innerHTML = '';
+            songs.forEach((song, index) => {
+                const songItem = document.createElement('div');
+                songItem.className = 'song-item';
+                songItem.textContent = song.name;
+                songItem.onclick = () => playSong(index);
+                songList.appendChild(songItem);
+            });
+        }
+
+        // Playback
+        function playSong(index) {
+            if (index >= 0 && index < songs.length) {
+                currentSongIndex = index;
+                audio.src = songs[index].data;
+                audio.load();
+                document.getElementById('currentSongName').textContent = songs[index].name;
+                document.getElementById('nowPlaying').classList.add('active');
+                setTimeout(() => {
+                    const playPromise = audio.play();
+                    if (playPromise !== undefined) {
+                        playPromise.catch(error => {
+                            alert('Playback failed: ' + error.message);
+                            isPlaying = false;
+                            updatePlayButton();
+                        }).then(() => {
+                            isPlaying = true;
+                            document.getElementById('djEffect').classList.add('active');
+                            document.getElementById('djEffectInner').classList.add('active');
+                            updatePlayButton();
+                        });
+                    }
+                }, 200);
+            }
+        }
+
+        function togglePlay() {
+            if (isPlaying) {
+                audio.pause();
+                isPlaying = false;
+                document.getElementById('djEffect').classList.remove('active');
+                document.getElementById('djEffectInner').classList.remove('active');
+            } else {
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        alert('Playback failed: ' + error.message);
+                    }).then(() => {
+                        isPlaying = true;
+                        document.getElementById('djEffect').classList.add('active');
+                        document.getElementById('djEffectInner').classList.add('active');
+                    });
+                }
+            }
+            updatePlayButton();
+        }
+
+        function updatePlayButton() {
+            const playButton = document.querySelector('.controls button:nth-child(2)');
+            playButton.textContent = isPlaying ? '⏸' : '▶️';
+        }
+
+        function nextSong() {
+            if (currentSongIndex < songs.length - 1) {
+                playSong(currentSongIndex + 1);
+            }
+        }
+
+        function previousSong() {
+            if (currentSongIndex > 0) {
+                playSong(currentSongIndex - 1);
+            }
+        }
+
+        // Progress Bar
+        audio.addEventListener('timeupdate', () => {
+            if (audio.duration) {
+                const progress = (audio.currentTime / audio.duration) * 100;
+                document.getElementById('progressBar').style.width = `${progress}%`;
+            }
+        });
+
+        audio.addEventListener('loadedmetadata', () => {
+            document.getElementById('progressBar').style.width = '0%';
+        });
+
+        function seek(event) {
+            const progressContainer = document.getElementById('progressContainer');
+            const rect = progressContainer.getBoundingClientRect();
+            const offsetX = event.clientX - rect.left;
+            const seekTime = (offsetX / rect.width) * audio.duration;
+            audio.currentTime = seekTime;
+        }
+
+        // Full Screen
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+    </script>
+</body>
+</html>
