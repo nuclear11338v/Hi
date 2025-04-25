@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MusicVibe - Enhanced Music Player</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #1e1e2f, #3f3f6f);
+            min-height: 100vh;
+            transition: background 0.5s;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .rotating-photo {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 5px solid #00ffcc;
+            animation: rotate 10s linear infinite;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.5);
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .progress {
+            height: 100%;
+            width: 0;
+            background: #00ffcc;
+            border-radius: 5px;
+        }
+
+        .playing-bg {
+            animation: colorChange 20s ease-in-out infinite alternate;
+        }
+
+        @keyframes colorChange {
+            0% { background: linear-gradient(135deg, #ff6b6b, #4ecdc4); }
+            25% { background: linear-gradient(135deg, #45b7d1, #96c93d); }
+            50% { background: linear-gradient(135deg, #f94144, #f3722c); }
+            75% { background: linear-gradient(135deg, #90be6d, #f8961e); }
+            100% { background: linear-gradient(135deg, #577590, #43aa8b); }
+        }
+
+        .playlist-item {
+            transition: background 0.3s, transform 0.2s;
+        }
+
+        .playlist-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        button {
+            background: linear-gradient(135deg, #00ffcc, #00ccff);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+        }
+
+        input[type="file"], input[type="text"] {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+        }
+
+        input[type="file"]::file-selector-button {
+            background: linear-gradient(135deg, #00ffcc, #00ccff);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+        }
+
+        @media (max-width: 480px) {
+            .rotating-photo {
+                width: 100px;
+                height: 100px;
+            }
+            .container { padding: 1rem; }
+            h1 { font-size: 1.5rem; }
+        }
+    </style>
+</head>
+<body class="flex justify-center items-center p-4">
+    <div class="container w-full max-w-md p-6" id="mainContainer">
+        <!-- Navigation Header -->
+        <header class="flex justify-between p-4 bg-white bg-opacity-10 rounded-lg mb-4">
+            <button onclick="window.location.href='help.html'">Help</button>
+            <button onclick="window.location.href='songs.html'">My Songs</button>
+            <button onclick="window.location.href='about.html'">About Us</button>
+        </header>
+
+        <!-- Language Selector -->
+        <select id="languageSelect" class="p-2 bg-white text-black rounded-lg mb-4">
+            <option value="en">English</option>
+            <option value="hi">Hindi</option>
+            <option value="ur">Urdu</option>
+            <option value="te">Telugu</option>
+            <option value="bn">Bengali</option>
+        </select>
+
+        <h1 class="text-3xl font-bold text-center text-cyan-300 mb-6">MusicVibe Player</h1>
+        <div class="upload-section flex flex-col gap-4 mb-6" id="uploadSection">
+            <label class="text-white font-semibold">Upload Song (Audio/Video)</label>
+            <input type="file" id="songFile" accept="audio/*,video/*" class="p-2 rounded-lg" />
+            <label class="text-white font-semibold">Upload Photo</label>
+            <input type="file" id="photoFile" accept="image/*" class="p-2 rounded-lg" />
+            <label class="text-white font-semibold">Song Name</label>
+            <input type="text" id="songName" placeholder="Enter song name" class="p-2 rounded-lg" />
+            <label class="text-white font-semibold">Upload Background Image (Optional)</label>
+            <input type="file" id="bgImageFile" accept="image/*" class="p-2 rounded-lg" />
+            <button onclick="addSong()" class="p-2 transition">Add Song</button>
+            <div class="upload-progress hidden mt-2">
+                <div class="progress-bar w-full">
+                    <div class="progress" id="uploadProgress"></div>
+                </div>
+            </div>
+        </div>
+        <div class="player flex flex-col items-center" id="playerSection">
+            <div class="w-full border-t-2 border-cyan-400 my-4" id="topBorder" style="display: none;"></div>
+            <h2 id="currentSongName" class="text-xl text-cyan-300 mt-4 text-center">No song playing</h2>
+            <img id="rotatingPhoto" class="rotating-photo mt-4 hidden" src="" alt="Song Photo" />
+            <video id="videoPlayer" class="mt-4 hidden" controls></video>
+            <audio id="audioPlayer" class="hidden"></audio>
+            <div class="progress-bar w-full mt-4" onclick="seek(event)">
+                <div class="progress" id="progress"></div>
+            </div>
+            <div class="w-full border-t-2 border-cyan-400 my-4" id="bottomBorder" style="display: none;"></div>
+            <div class="controls flex gap-6 mt-4">
+                <button onclick="previousSong()" class="text-3xl text-white hover:text-cyan-400">⏮</button>
+                <button onclick="playPause()" class="text-3xl text-white hover:text-cyan-400">▶️</button>
+                <button onclick="nextSong()" class="text-3xl text-white hover:text-cyan-400">⏭</button>
+                <button onclick="stopSong()" class="text-3xl text-white hover:text-cyan-400">⏹</button>
+            </div>
+            <button onclick="backToHome()" class="mt-4 p-2 transition hidden" id="backToHome">Back to Home</button>
+        </div>
+        <div class="playlist mt-6 max-h-48 overflow-y-auto p-2 bg-white bg-opacity-5 rounded-lg" id="playlist"></div>
+    </div>
+
+    <script>
+        // Translation Object
+        const translations = {
+            en: {
+                title: 'MusicVibe - Enhanced Music Player',
+                uploadSong: 'Upload Song (Audio/Video)',
+                uploadPhoto: 'Upload Photo',
+                songName: 'Song Name',
+                uploadBg: 'Upload Background Image (Optional)',
+                addSong: 'Add Song',
+                noSong: 'No song playing',
+                backToHome: 'Back to Home',
+                help: 'Help',
+                mySongs: 'My Songs',
+                aboutUs: 'About Us'
+            },
+            hi: {
+                title: 'MusicVibe - उन्नत संगीत प्लेयर',
+                uploadSong: 'गाना अपलोड करें (ऑडियो/वीडियो)',
+                uploadPhoto: 'फोटो अपलोड करें',
+                songName: 'गाने का नाम',
+                uploadBg: 'पृष्ठभूमि छवि अपलोड करें (वैकल्पिक)',
+                addSong: 'गाना जोड़ें',
+                noSong: 'कोई गाना नहीं चल रहा',
+                backToHome: 'वापस घर',
+                help: 'मदद',
+                mySongs: 'मेरे गाने',
+                aboutUs: 'हमारे बारे में'
+            },
+            ur: {
+                title: 'MusicVibe - بہتر میوزک پلیئر',
+                uploadSong: 'گانا اپ لوڈ کریں (آڈیو/ویڈیو)',
+                uploadPhoto: 'تصویر اپ لوڈ کریں',
+                songName: 'گانے کا نام',
+                uploadBg: 'پس منظر کی تصویر اپ لوڈ کریں (اختیاری)',
+                addSong: 'گانا شامل کریں',
+                noSong: 'کوئی گانا نہیں چل رہا',
+                backToHome: 'واپس گھر',
+                help: 'مدد',
+                mySongs: 'میرے گانے',
+                aboutUs: 'ہمارے بارے میں'
+            },
+            te: {
+                title: 'MusicVibe - మెరుగైన సంగీత ప్లేయర్',
+                uploadSong: 'పాటను అప్‌లోడ్ చేయండి (ఆడియో/వీడియో)',
+                uploadPhoto: 'ఫోటోను అప్‌లోడ్ చేయండి',
+                songName: 'పాట పేరు',
+                uploadBg: 'నేపథ్య చిత్రాన్ని అప్‌లోడ్ చేయండి (ఐచ్ఛికం)',
+                addSong: 'పాటను జోడించండి',
+                noSong: 'ఏ పాటా ప్లే అవుతోంది',
+                backToHome: 'తిరిగి హోమ్‌కి',
+                help: 'సహాయం',
+                mySongs: 'నా పాటలు',
+                aboutUs: 'మా గురించి'
+            },
+            bn: {
+                title: 'MusicVibe - উন্নত সঙ্গীত প্লেয়ার',
+                uploadSong: 'গান আপলোড করুন (অডিও/ভিডিও)',
+                uploadPhoto: 'ছবি আপলোড করুন',
+                songName: 'গানের নাম',
+                uploadBg: 'ব্যাকগ্রাউন্ড ইমেজ আপলোড করুন (ঐচ্ছিক)',
+                addSong: 'গান যোগ করুন',
+                noSong: 'কোন গান বাজছে না',
+                backToHome: 'বাড়ি ফিরে',
+                help: 'সাহায্য',
+                mySongs: 'আমার গান',
+                aboutUs: 'আমাদের সম্পর্কে'
+            }
+        };
+
+        // DOM Elements
+        const songFile = document.getElementById('songFile');
+        const photoFile = document.getElementById('photoFile');
+        const songName = document.getElementById('songName');
+        const bgImageFile = document.getElementById('bgImageFile');
+        const rotatingPhoto = document.getElementById('rotatingPhoto');
+        const currentSongName = document.getElementById('currentSongName');
+        const playlist = document.getElementById('playlist');
+        const progress = document.getElementById('progress');
+        const uploadSection = document.getElementById('uploadSection');
+        const playerSection = document.getElementById('playerSection');
+        const backToHomeBtn = document.getElementById('backToHome');
+        const topBorder = document.getElementById('topBorder');
+        const bottomBorder = document.getElementById('bottomBorder');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const videoPlayer = document.getElementById('videoPlayer');
+        let songs = JSON.parse(localStorage.getItem('songs')) || [];
+        let currentSongIndex = -1;
+        let isPlaying = false;
+        let currentMedia = null;
+
+        // Language Handling
+        const languageSelect = document.getElementById('languageSelect');
+        languageSelect.addEventListener('change', () => updateLanguage(languageSelect.value));
+        function updateLanguage(lang) {
+            const t = translations[lang];
+            document.title = t.title;
+            document.querySelector('label[for="songFile"]').textContent = t.uploadSong;
+            document.querySelector('label[for="photoFile"]').textContent = t.uploadPhoto;
+            document.querySelector('label[for="songName"]').textContent = t.songName;
+            document.querySelector('label[for="bgImageFile"]').textContent = t.uploadBg;
+            document.querySelector('button[onclick="addSong()"]').textContent = t.addSong;
+            if (currentSongIndex === -1) currentSongName.textContent = t.noSong;
+            backToHomeBtn.textContent = t.backToHome;
+            document.querySelector('button[onclick="window.location.href=\'help.html\'"]').textContent = t.help;
+            document.querySelector('button[onclick="window.location.href=\'songs.html\'"]').textContent = t.mySongs;
+            document.querySelector('button[onclick="window.location.href=\'about.html\'"]').textContent = t.aboutUs;
+        }
+        updateLanguage('en');
+
+        // Load Background Image
+        const savedBg = localStorage.getItem('backgroundImage');
+        if (savedBg) {
+            document.body.style.backgroundImage = `url(${savedBg})`;
+            document.body.style.backgroundSize = 'cover';
+            document.body.style.backgroundPosition = 'center';
+        }
+
+        // Update UI
+        function updateUI() {
+            if (isPlaying) {
+                uploadSection.classList.add('hidden');
+                playlist.classList.add('hidden');
+                backToHomeBtn.classList.remove('hidden');
+                rotatingPhoto.classList.remove('hidden');
+                topBorder.style.display = 'block';
+                bottomBorder.style.display = 'block';
+                document.body.classList.add('playing-bg');
+                if (savedBg) document.body.classList.remove('playing-bg');
+            } else {
+                uploadSection.classList.remove('hidden');
+                playlist.classList.remove('hidden');
+                backToHomeBtn.classList.add('hidden');
+                rotatingPhoto.classList.add('hidden');
+                topBorder.style.display = 'none';
+                bottomBorder.style.display = 'none';
+                document.body.classList.remove('playing-bg');
+                if (savedBg) document.body.style.backgroundImage = `url(${savedBg})`;
+                else document.body.style.background = 'linear-gradient(135deg, #1e1e2f, #3f3f6f)';
+            }
+        }
+
+        // File to Base64 with Progress
+        async function fileToBase64(file, onProgress) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onprogress = onProgress;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Add Song
+        async function addSong() {
+            if (songFile.files[0] && songName.value) {
+                const file = songFile.files[0];
+                if (file.size > 100 * 1024 * 1024) {
+                    alert('File is too large. Maximum size is 100MB.');
+                    return;
+                }
+                const uploadProgress = document.getElementById('uploadProgress');
+                const uploadProgressContainer = document.querySelector('.upload-progress');
+                uploadProgressContainer.classList.remove('hidden');
+                const song = {
+                    file: await fileToBase64(file, (event) => {
+                        if (event.lengthComputable) {
+                            const percentage = (event.loaded / event.total) * 100;
+                            uploadProgress.style.width = `${percentage}%`;
+                        }
+                    }),
+                    name: songName.value,
+                    photo: photoFile.files[0] ? await fileToBase64(photoFile.files[0]) : '',
+                    type: file.type.includes('video') ? 'video' : 'audio'
+                };
+                songs.push(song);
+                localStorage.setItem('songs', JSON.stringify(songs));
+                if (bgImageFile.files[0]) {
+                    const bgImage = await fileToBase64(bgImageFile.files[0]);
+                    localStorage.setItem('backgroundImage', bgImage);
+                    document.body.style.backgroundImage = `url(${bgImage})`;
+                    document.body.style.backgroundSize = 'cover';
+                    document.body.style.backgroundPosition = 'center';
+                }
+                updatePlaylist();
+                songFile.value = '';
+                photoFile.value = '';
+                songName.value = '';
+                bgImageFile.value = '';
+                uploadProgressContainer.classList.add('hidden');
+            } else {
+                alert('Please upload a song and enter a song name.');
+            }
+        }
+
+        // Update Playlist
+        function updatePlaylist() {
+            playlist.innerHTML = '';
+            songs.forEach((song, index) => {
+                const item = document.createElement('div');
+                item.className = 'playlist-item flex justify-between p-2 bg-white bg-opacity-10 rounded-lg cursor-pointer';
+                item.innerHTML = `<span>${song.name}</span><span>${song.type === 'video' ? '🎥' : '🎵'}</span>`;
+                item.onclick = () => playSong(index);
+                playlist.appendChild(item);
+            });
+        }
+
+        // Play Song
+        function playSong(index) {
+            if (currentMedia) currentMedia.pause();
+            if (index >= 0 && index < songs.length) {
+                currentSongIndex = index;
+                const song = songs[index];
+                if (song.type === 'video') {
+                    currentMedia = videoPlayer;
+                    videoPlayer.src = song.file;
+                    videoPlayer.classList.remove('hidden');
+                    audioPlayer.classList.add('hidden');
+                } else {
+                    currentMedia = audioPlayer;
+                    audioPlayer.src = song.file;
+                    audioPlayer.classList.remove('hidden');
+                    videoPlayer.classList.add('hidden');
+                }
+                currentMedia.play().catch((error) => {
+                    console.error('Playback failed:', error);
+                    alert('Error playing the media.');
+                });
+                isPlaying = true;
+                currentSongName.textContent = song.name;
+                rotatingPhoto.src = song.photo || 'https://via.placeholder.com/150';
+                updateUI();
+                updatePlayButton();
+            }
+        }
+
+        // Play/Pause
+        function playPause() {
+            if (currentMedia) {
+                if (isPlaying) {
+                    currentMedia.pause();
+                    isPlaying = false;
+                } else {
+                    currentMedia.play().catch((error) => {
+                        console.error('Playback failed:', error);
+                        alert('Error playing the media.');
+                    });
+                    isPlaying = true;
+                }
+                updatePlayButton();
+                updateUI();
+            }
+        }
+
+        // Update Play Button
+        function updatePlayButton() {
+            document.querySelector('.controls button:nth-child(2)').textContent = isPlaying ? '⏸' : '▶️';
+        }
+
+        // Previous Song
+        function previousSong() {
+            if (currentSongIndex > 0) playSong(currentSongIndex - 1);
+        }
+
+        // Next Song (Looping)
+        function nextSong() {
+            if (currentSongIndex < songs.length - 1) playSong(currentSongIndex + 1);
+            else playSong(0); // Loop to first song
+        }
+
+        // Stop Song
+        function stopSong() {
+            if (currentMedia) {
+                currentMedia.pause();
+                currentMedia.currentTime = 0;
+            }
+            isPlaying = false;
+            currentSongIndex = -1;
+            currentSongName.textContent = translations[languageSelect.value].noSong;
+            rotatingPhoto.src = '';
+            updatePlayButton();
+            updateUI();
+        }
+
+        // Back to Home
+        function backToHome() {
+            stopSong();
+        }
+
+        // Update Progress
+        function updateProgress() {
+            if (currentMedia && currentMedia.duration) {
+                const percentage = (currentMedia.currentTime / currentMedia.duration) * 100;
+                progress.style.width = `${percentage}%`;
+            }
+        }
+
+        // Seek
+        function seek(eve

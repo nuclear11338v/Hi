@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Songs - MusicVibe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white p-4">
+    <h1 class="text-2xl">My Songs</h1>
+    <ul id="songList" class="list-disc pl-5"></ul>
+    <a href="index.html" class="text-cyan-400">Back to Player</a>
+    <script>
+        const songs = JSON.parse(localStorage.getItem('songs')) || [];
+        const songList = document.getElementById('songList');
+        songs.forEach(song => {
+            const li = document.createElement('li');
+            li.textContent = `${song.name} (${song.type})`;
+            songList.appendChild(li);
+        });
+    </script>
+</body>
+</html>
